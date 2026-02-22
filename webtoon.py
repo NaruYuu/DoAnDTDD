@@ -15,21 +15,15 @@ app.secret_key = 'manga_server_secret_key'
 
 # --- CẤU HÌNH ---
 ADMIN_USER = "admin"
-ADMIN_PASS = "naruyuu2203"  # <--- Pass kết nối Sync
+ADMIN_PASS = "naruyuu2203"
 ROOT_DIR = "/var/mobile/Documents/Manga"
 DB_PROGRESS_FILE = "/var/mobile/Documents/reading_progress_v2.json"
 
-# --- THUẬT TOÁN SẮP XẾP MỚI (FIX LỖI CHƯƠNG 24) ---
+# --- THUẬT TOÁN SẮP XẾP TỰ NHIÊN  ---
 def manga_sort_key(s):
-    # Tìm con số đầu tiên xuất hiện trong tên (Hỗ trợ cả số thập phân như 4.5)
-    # Ví dụ: "Chương 24" -> tìm thấy 24.0
-    #        "Chương 0"  -> tìm thấy 0.0
     match = re.search(r'(\d+(\.\d+)?)', s)
     if match:
-        # Trả về (Giá trị số, Tên gốc) để sắp xếp theo số trước
         return (float(match.group(1)), s.lower())
-    
-    # Nếu tên không có số (ví dụ "Oneshot"), xếp nó xuống cuối cùng
     return (float('inf'), s.lower())
 
 # --- UTILS ---
@@ -52,7 +46,6 @@ def get_chapter_list(series_path):
             full_path = os.path.join(series_path, f)
             if os.path.isdir(full_path) or (os.path.isfile(full_path) and f.lower().endswith(('.cbz', '.zip'))):
                 items.append(f)
-    # SỬ DỤNG HÀM SẮP XẾP MỚI Ở ĐÂY
     return sorted(items, key=manga_sort_key)
 
 # --- DATABASE ---
@@ -67,9 +60,7 @@ def save_db(data):
         with open(DB_PROGRESS_FILE, 'w', encoding='utf-8') as f: json.dump(data, f, indent=4)
     except: pass
 
-# ==========================================
 # KHU VỰC API SYNC (CHO TOOL MÁY TÍNH)
-# ==========================================
 
 @app.route('/api/sync/check_auth', methods=['POST'])
 def api_check_auth():
@@ -116,8 +107,6 @@ def api_upload():
             
         file.save(os.path.join(save_dir, filename))
         return jsonify({"status": "uploaded", "file": filename})
-
-# ==========================================
 
 # --- DECORATOR CHECK ADMIN ---
 def admin_required(f):
