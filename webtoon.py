@@ -5,12 +5,60 @@ import json
 import hashlib
 import mimetypes
 import shutil
+import socket
+import threading
+import time
+import logging
+from collections import deque
 from flask import Flask, send_file, render_template_string, abort, request, make_response, redirect, jsonify, session, url_for
 from io import BytesIO
 from functools import wraps
 from werkzeug.utils import secure_filename
 
+# --- CẤU HÌNH LOGGING (CONSOLE 15 DÒNG + GHI FILE ERROR) ---
+ERROR_LOG_FILE = "/var/mobile/Documents/webtoon_error.log"
+
+class Console15LinesHandler(logging.Handler):
+    def __init__(self):
+        super().__init__()
+        # Giữ tối đa 15 dòng trong bộ nhớ
+        self.log_queue = deque(maxlen=15)
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            # Tách các dòng nếu log chứa nhiều dòng (vd: lỗi traceback)
+            for line in msg.split('\n'):
+                self.log_queue.append(line)
+            
+            # Xóa màn hình mượt bằng mã ANSI và in lại 15 dòng mới nhất
+            print('\033[2J\033[H', end='') 
+            print('\n'.join(self.log_queue))
+        except Exception:
+            self.handleError(record)
+
+# 1. Cấu hình file log chỉ bắt các lỗi (ERROR)
+file_handler = logging.FileHandler(ERROR_LOG_FILE, encoding='utf-8')
+file_handler.setLevel(logging.ERROR)
+file_handler.setFormatter(logging.Formatter('[%(asctime)s] %(levelname)s in %(module)s:\n%(message)s\n' + '-'*40))
+
+# 2. Cấu hình console log giới hạn 15 dòng
+console_handler = Console15LinesHandler()
+console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(logging.Formatter('[%(asctime)s] %(message)s', datefmt='%H:%M:%S'))
+
+# 3. Ghi đè hệ thống log của Flask (Werkzeug)
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.INFO)
+log.handlers = [] # Xóa log mặc định
+log.addHandler(console_handler)
+log.addHandler(file_handler)
+
 app = Flask(__name__)
+# 4. Gắn log vào App
+app.logger.handlers = []
+app.logger.addHandler(console_handler)
+app.logger.addHandler(file_handler)
 app.secret_key = 'manga_server_secret_key'
 
 # --- CẤU HÌNH ---
@@ -18,6 +66,31 @@ ADMIN_USER = "admin"
 ADMIN_PASS = "naruyuu2203"
 ROOT_DIR = "/var/mobile/Documents/Manga"
 DB_PROGRESS_FILE = "/var/mobile/Documents/reading_progress_v2.json"
+
+# --- PHÁT SÓNG IP QUA UDP BROADCAST ---
+def get_local_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except:
+        return "127.0.0.1"
+
+def udp_broadcast():
+    broadcaster = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    broadcaster.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    while True:
+        try:
+            ip = get_local_ip()
+            message = f"MANGA_SERVER|{ip}|5000".encode('utf-8')
+            broadcaster.sendto(message, ('255.255.255.255', 5555))
+        except:
+            pass
+        time.sleep(5)
+
+threading.Thread(target=udp_broadcast, daemon=True).start()
 
 # --- THUẬT TOÁN SẮP XẾP TỰ NHIÊN  ---
 def manga_sort_key(s):
@@ -60,7 +133,20 @@ def save_db(data):
         with open(DB_PROGRESS_FILE, 'w', encoding='utf-8') as f: json.dump(data, f, indent=4)
     except: pass
 
+# --- DECORATOR CHECK ADMIN ---
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('is_admin'):
+            return redirect(url_for('admin_login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 # KHU VỰC API SYNC (CHO TOOL MÁY TÍNH)
+@app.route('/api/get_ip', methods=['GET'])
+@admin_required
+def get_ip():
+    return jsonify({'ip': request.remote_addr})
 
 @app.route('/api/sync/check_auth', methods=['POST'])
 def api_check_auth():
@@ -81,7 +167,6 @@ def api_list_files():
     if not os.path.exists(full_path):
         return jsonify({"files": []})
         
-    # Chỉ liệt kê file ảnh
     files = [f for f in os.listdir(full_path) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))]
     return jsonify({"files": files})
 
@@ -107,15 +192,6 @@ def api_upload():
             
         file.save(os.path.join(save_dir, filename))
         return jsonify({"status": "uploaded", "file": filename})
-
-# --- DECORATOR CHECK ADMIN ---
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get('is_admin'):
-            return redirect(url_for('admin_login'))
-        return f(*args, **kwargs)
-    return decorated_function
 
 # --- GIAO DIỆN & JS ---
 CSS_STYLE = """
@@ -273,7 +349,6 @@ def admin_dashboard(path=""):
     
     items = []
     if os.path.exists(abs_path):
-        # Sort cho file manager dùng logic tự nhiên (để quản lý file dễ hơn)
         for f in sorted(os.listdir(abs_path), key=lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', s)]):
             full_p = os.path.join(abs_path, f)
             rel_p = os.path.join(path, f)
@@ -349,7 +424,7 @@ def api_chapter_data(series_id, chap_id):
     if not rc: return jsonify({"error": "Not found"})
     l=get_chapter_list(os.path.join(ROOT_DIR, rn)); idx=l.index(rc)
     nid=generate_id(l[idx+1]) if idx<len(l)-1 else "None"; prev=l[idx-1] if idx>0 else "Start"
-    imgs=sorted([f for f in os.listdir(os.path.join(ROOT_DIR,rn,rc)) if is_image(f)], key=manga_sort_key) # CŨNG ÁP DỤNG SORT CHO ẢNH
+    imgs=sorted([f for f in os.listdir(os.path.join(ROOT_DIR,rn,rc)) if is_image(f)], key=manga_sort_key) 
     return jsonify({"chap_name": rc, "prev_chap_name": prev, "next_id": nid, "images": [f"/image/{series_id}/{chap_id}/{i}" for i in imgs]})
 
 @app.route('/')
@@ -371,7 +446,6 @@ def view_series(series_id):
     headers = {'Cache-Control': 'no-cache, no-store, must-revalidate'}
     real_name = get_real_path_from_id(ROOT_DIR, series_id)
     if not real_name: abort(404)
-    # Lấy danh sách chapter đã được sắp xếp chuẩn
     chaps = get_chapter_list(os.path.join(ROOT_DIR, real_name))
     user = request.cookies.get('username')
     last_id = load_db().get(user, {}).get(series_id)
@@ -388,7 +462,6 @@ def read_chapter(series_id, chap_id):
     data = data_response.json if not isinstance(data_response, dict) else data_response
     if data.get('error'): abort(404)
     real_series = get_real_path_from_id(ROOT_DIR, series_id)
-    # Danh sách chapter để tạo menu cũng cần sắp xếp chuẩn
     all_chaps_raw = get_chapter_list(os.path.join(ROOT_DIR, real_series))
     all_chaps_json_obj = []
     for c in all_chaps_raw: all_chaps_json_obj.append({"id": generate_id(c), "name": c})
