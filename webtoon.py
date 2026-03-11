@@ -130,23 +130,27 @@ threading.Thread(target=udp_broadcast, daemon=True).start()
 # --- THUẬT TOÁN SẮP XẾP TỰ NHIÊN  ---
 def chapter_sort_key(item):
     """
-    Hàm này bóc tách số Vol và số Ch từ tên chương.
-    Trả về một tuple (vol_num, ch_num) để Python ưu tiên sắp xếp Vol trước, Ch sau.
+    Ưu tiên sắp xếp theo Volume -> Chapter. 
+    Nếu không có Volume, tự động nhóm lại và sắp xếp theo Chapter.
     """
-    # Nếu danh sách của bạn là list các dictionary (ví dụ: item['title']), hãy đổi 'item' thành 'item["title"]'
-    # Nếu danh sách của bạn là list các chuỗi (string), giữ nguyên 'item'
     title = str(item) 
     
-    # 1. Tìm số Volume (Bắt các dạng: Vol. 10, Vol. 2.5)
-    vol_match = re.search(r'Vol\.\s*([0-9\.]+)', title, re.IGNORECASE)
-    vol_num = float(vol_match.group(1)) if vol_match else 0.0
+    # 1. Tìm số Volume (Hỗ trợ Vol., Vol 10...)
+    vol_match = re.search(r'Vol[\.\s]*([0-9\.]+)', title, re.IGNORECASE)
+    # NẾU KHÔNG CÓ VOL: Gán bằng float('inf') để tự động gom lại và xét theo Chapter
+    vol_num = float(vol_match.group(1)) if vol_match else float('inf')
     
-    # 2. Tìm số Chapter (Bắt các dạng: Ch. 82, Ch. 20.5)
-    ch_match = re.search(r'Ch\.\s*([0-9\.]+)', title, re.IGNORECASE)
-    ch_num = float(ch_match.group(1)) if ch_match else 0.0
+    # 2. Tìm số Chapter (Hỗ trợ Ch., Chap, Chapter, Chương...)
+    ch_match = re.search(r'(?:Ch\.|Chap|Chapter|Chương)\s*([0-9\.]+)', title, re.IGNORECASE)
+    if ch_match:
+        ch_num = float(ch_match.group(1))
+    else:
+        # Nếu thư mục chỉ ghi mỗi con số (VD: "82" thay vì "Ch. 82"), vét cạn tìm số đầu tiên
+        fallback_match = re.search(r'(\d+(\.\d+)?)', title)
+        ch_num = float(fallback_match.group(1)) if fallback_match else float('inf')
     
-    # Python sẽ sắp xếp theo phần tử đầu tiên (vol) trước, nếu trùng sẽ xét tiếp (ch)
-    return (vol_num, ch_num)
+    # Trả về bộ 3 tiêu chí: Vol -> Chapter -> Tên chữ cái (nếu trùng số)
+    return (vol_num, ch_num, title.lower())
 
 def manga_sort_key(s):
     match = re.search(r'(\d+(\.\d+)?)', s)
