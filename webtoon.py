@@ -1,3 +1,38 @@
+import sys
+import subprocess
+import importlib.util
+
+# 1. Khai báo danh sách các thư viện cần thiết (Tên dùng để pip install)
+REQUIRED_MODULES = [
+    "flask",
+    "requests",
+    "werkzeug",
+    "secure" # Thêm các thư viện khác của bạn vào đây
+]
+
+def check_and_install_packages():
+    """Kiểm tra và tự động cài đặt thư viện bằng thư viện lõi của Python"""
+    missing_packages = []
+    
+    # Quét từng thư viện xem máy đã có chưa
+    for module in REQUIRED_MODULES:
+        if importlib.util.find_spec(module) is None:
+            missing_packages.append(module)
+    
+    if missing_packages:
+        print(f"📦 Phát hiện thư viện chưa cài đặt: {', '.join(missing_packages)}")
+        print("⏳ Đang tự động tải và cài đặt. Vui lòng đợi trong giây lát...")
+        try:
+            # Chạy ngầm lệnh cài đặt qua pip
+            subprocess.check_call([sys.executable, "-m", "pip", "install", *missing_packages])
+            print("✅ Cài đặt hoàn tất! Bắt đầu chạy chương trình...\n" + "-"*40)
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Lỗi trong quá trình cài đặt: {e}")
+            sys.exit(1) # Dừng nếu lỗi
+
+# 2. GỌI HÀM NÀY ĐẦU TIÊN
+check_and_install_packages()
+
 import os
 import zipfile
 import re
@@ -93,6 +128,26 @@ def udp_broadcast():
 threading.Thread(target=udp_broadcast, daemon=True).start()
 
 # --- THUẬT TOÁN SẮP XẾP TỰ NHIÊN  ---
+def chapter_sort_key(item):
+    """
+    Hàm này bóc tách số Vol và số Ch từ tên chương.
+    Trả về một tuple (vol_num, ch_num) để Python ưu tiên sắp xếp Vol trước, Ch sau.
+    """
+    # Nếu danh sách của bạn là list các dictionary (ví dụ: item['title']), hãy đổi 'item' thành 'item["title"]'
+    # Nếu danh sách của bạn là list các chuỗi (string), giữ nguyên 'item'
+    title = str(item) 
+    
+    # 1. Tìm số Volume (Bắt các dạng: Vol. 10, Vol. 2.5)
+    vol_match = re.search(r'Vol\.\s*([0-9\.]+)', title, re.IGNORECASE)
+    vol_num = float(vol_match.group(1)) if vol_match else 0.0
+    
+    # 2. Tìm số Chapter (Bắt các dạng: Ch. 82, Ch. 20.5)
+    ch_match = re.search(r'Ch\.\s*([0-9\.]+)', title, re.IGNORECASE)
+    ch_num = float(ch_match.group(1)) if ch_match else 0.0
+    
+    # Python sẽ sắp xếp theo phần tử đầu tiên (vol) trước, nếu trùng sẽ xét tiếp (ch)
+    return (vol_num, ch_num)
+
 def manga_sort_key(s):
     match = re.search(r'(\d+(\.\d+)?)', s)
     if match:
@@ -119,7 +174,8 @@ def get_chapter_list(series_path):
             full_path = os.path.join(series_path, f)
             if os.path.isdir(full_path) or (os.path.isfile(full_path) and f.lower().endswith(('.cbz', '.zip'))):
                 items.append(f)
-    return sorted(items, key=manga_sort_key)
+    # CHỈ SỬA DÒNG DƯỚI NÀY: Đổi manga_sort_key thành chapter_sort_key
+    return sorted(items, key=chapter_sort_key)
 
 # --- DATABASE ---
 def load_db():
