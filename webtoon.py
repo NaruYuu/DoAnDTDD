@@ -256,17 +256,41 @@ CSS_STYLE = """
     a { text-decoration: none; color: #bb86fc; }
     .reader-wrapper { width: 100%; max-width: 800px; margin: 0 auto; background: #000; padding-top: 50px; }
     .chapter-container img { width: 100% !important; height: auto !important; display: block; border: none; margin: 0; padding: 0; }
+    
+    /* --- BỐ CỤC THANH ĐIỀU HƯỚNG TRÊN CÙNG --- */
     .overlay-nav { position: fixed; top: 0; left: 0; width: 100%; height: 50px; background: rgba(20, 20, 20, 0.98); border-bottom: 1px solid #333; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; box-sizing: border-box; z-index: 1000; transition: transform 0.3s ease; }
     .overlay-nav.hidden { transform: translateY(-100%); }
-    .nav-left, .nav-right { display: flex; align-items: center; } .nav-center { width: 50%; text-align: center; }
-    .nav-title { font-size: 14px; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: bold; }
+    .nav-left, .nav-right { display: flex; align-items: center; } 
+    .nav-center { width: 50%; text-align: center; overflow: hidden; }
+    
+    /* Cắt tên truyện dài trên thanh Nav thành dấu ... */
+    .nav-title { font-size: 14px; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: bold; width: 100%; display: block; }
     .home-btn { font-size: 22px; padding: 5px; }
-    .chap-selector { background: #333; color: white; border: 1px solid #555; border-radius: 5px; padding: 5px; font-size: 13px; max-width: 100%; }
+    
+    /* Giới hạn độ dài của nút chọn Chapter để không đẩy lệch màn hình */
+    .chap-selector { background: #333; color: white; border: 1px solid #555; border-radius: 5px; padding: 5px; font-size: 13px; max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    
     .gamepad-icon { font-size: 20px; color: #555; transition: color 0.3s; margin-right: 10px; }
     .gamepad-icon.active { color: #bb86fc; text-shadow: 0 0 10px #bb86fc; }
-    .chap-separator { width: 100%; padding: 40px 20px; background: #111; color: #888; text-align: center; border-top: 1px solid #333; border-bottom: 1px solid #333; }
+    
+    /* --- BỐ CỤC CHUYỂN CHƯƠNG (Phần bạn đang bị lỗi) --- */
+    .chap-separator { width: 100%; padding: 40px 20px; background: #111; color: #888; text-align: center; border-top: 1px solid #333; border-bottom: 1px solid #333; box-sizing: border-box; overflow: hidden; }
+    
+    /* Cắt tên chương dài ở phần "Finished" và "Next" thành dấu ... */
+    .chap-separator h3, .next-highlight { 
+        white-space: nowrap; 
+        overflow: hidden; 
+        text-overflow: ellipsis; 
+        width: 100%; 
+        margin: 5px auto; 
+        color: #bb86fc; /* Đổi màu cho nổi bật */
+        font-size: 1.2em; 
+        font-weight: bold; 
+    }
+    
     .loading-spinner { margin: 20px auto; width: 30px; height: 30px; border: 3px solid #333; border-top: 3px solid #bb86fc; border-radius: 50%; animation: spin 0.8s linear infinite; display: none; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
     /* ADMIN STYLES */
     .admin-container { max-width: 900px; margin: 20px auto; padding: 20px; background: #1e1e1e; border-radius: 8px; }
     .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
