@@ -51,7 +51,7 @@ from functools import wraps
 from werkzeug.utils import secure_filename
 
 # --- CẤU HÌNH LOGGING (CONSOLE 15 DÒNG + GHI FILE ERROR) ---
-ERROR_LOG_FILE = "/var/mobile/Documents/webtoon_error.log"
+ERROR_LOG_FILE = "./webtoon_error.log"
 
 class Console15LinesHandler(logging.Handler):
     def __init__(self):
@@ -99,8 +99,12 @@ app.secret_key = 'manga_server_secret_key'
 # --- CẤU HÌNH ---
 ADMIN_USER = "admin"
 ADMIN_PASS = "naruyuu2203"
-ROOT_DIR = "/var/mobile/Documents/Manga"
-DB_PROGRESS_FILE = "/var/mobile/Documents/reading_progress_v2.json"
+POSSIBLE_ROOT_DIRS = [
+    "./manga",
+    r"C:\Users\YourName\Manga",
+]
+ROOT_DIR = next((p for p in POSSIBLE_ROOT_DIRS if os.path.exists(p)), POSSIBLE_ROOT_DIRS[0])
+DB_PROGRESS_FILE = os.path.join(ROOT_DIR, "reading_progress_v2.json")
 
 # --- PHÁT SÓNG IP QUA UDP BROADCAST ---
 def get_local_ip():
