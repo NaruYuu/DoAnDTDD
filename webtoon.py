@@ -280,6 +280,11 @@ CSS_STYLE = """
     
     .gamepad-icon { font-size: 20px; color: #555; transition: color 0.3s; margin-right: 10px; }
     .gamepad-icon.active { color: #bb86fc; text-shadow: 0 0 10px #bb86fc; }
+
+    /* Tùy chỉnh hiệu ứng chọn bằng Gamepad */
+    .menu-item { display: block; background: #111; margin: 10px; padding: 15px; border-radius: 8px; text-decoration: none; color: #ccc; border: 2px solid transparent; transition: all 0.2s ease; }
+    .menu-item:hover, .menu-item.focused { border-color: #bb86fc; background: #1e1e1e; transform: scale(1.02); box-shadow: 0 0 10px rgba(187, 134, 252, 0.3); }
+    .menu-item.active-chap { border-left: 4px solid #bb86fc; }
     
     /* --- BỐ CỤC CHUYỂN CHƯƠNG (Phần bạn đang bị lỗi) --- */
     .chap-separator { width: 100%; padding: 40px 20px; background: #111; color: #888; text-align: center; border-top: 1px solid #333; border-bottom: 1px solid #333; box-sizing: border-box; overflow: hidden; }
@@ -405,6 +410,82 @@ JS_READER_SCRIPT = """
             loadedChapters.push(id);
         } catch(e) { console.error(e); } finally { isLoading = false; document.getElementById('spinner').style.display = 'none'; }
     }
+</script>
+"""
+
+JS_MENU_SCRIPT = """
+<script>
+    let gamepadIndex = null;
+    let currentIndex = 0;
+    let menuItems = [];
+    let btnState = {};
+    let lastMove = 0;
+
+    function initMenuGamepad() {
+        menuItems = document.querySelectorAll('.menu-item');
+        if(menuItems.length > 0) menuItems[currentIndex].classList.add('focused');
+        
+        window.addEventListener("gamepadconnected", (e) => { 
+            gamepadIndex = e.gamepad.index; 
+            requestAnimationFrame(menuGamepadLoop); 
+        });
+        window.addEventListener("gamepaddisconnected", (e) => { 
+            gamepadIndex = null; 
+        });
+    }
+
+    function updateMenuFocus() {
+        menuItems.forEach((item, idx) => {
+            if(idx === currentIndex) {
+                item.classList.add('focused');
+                item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                item.classList.remove('focused');
+            }
+        });
+    }
+
+    function menuGamepadLoop() {
+        if (gamepadIndex === null) return;
+        const gp = navigator.getGamepads()[gamepadIndex];
+        if (!gp) return;
+
+        const now = Date.now();
+        
+        // Điều hướng Lên/Xuống bằng D-pad (12, 13) hoặc Analog Trái/Phải
+        let moveUp = gp.buttons[12]?.pressed || gp.axes[1] < -0.5 || gp.axes[3] < -0.5;
+        let moveDown = gp.buttons[13]?.pressed || gp.axes[1] > 0.5 || gp.axes[3] > 0.5;
+
+        if (moveDown && now - lastMove > 200) {
+            if (currentIndex < menuItems.length - 1) currentIndex++;
+            updateMenuFocus();
+            lastMove = now;
+        } else if (moveUp && now - lastMove > 200) {
+            if (currentIndex > 0) currentIndex--;
+            updateMenuFocus();
+            lastMove = now;
+        }
+
+        // Nút X (Button 0) -> Click vào mục đang Focus
+        if (gp.buttons[0]?.pressed) {
+            if (!btnState['x']) {
+                if(menuItems.length > 0) menuItems[currentIndex].click();
+                btnState['x'] = true;
+            }
+        } else btnState['x'] = false;
+
+        // Nút O (Button 1) -> Quay lại trang trước
+        if (gp.buttons[1]?.pressed) {
+            if (!btnState['o']) {
+                window.history.back();
+                btnState['o'] = true;
+            }
+        } else btnState['o'] = false;
+
+        requestAnimationFrame(menuGamepadLoop);
+    }
+
+    document.addEventListener("DOMContentLoaded", initMenuGamepad);
 </script>
 """
 
