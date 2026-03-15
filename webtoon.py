@@ -20,14 +20,14 @@ def check_and_install_packages():
             missing_packages.append(module)
     
     if missing_packages:
-        print(f"📦 Phát hiện thư viện chưa cài đặt: {', '.join(missing_packages)}")
-        print("⏳ Đang tự động tải và cài đặt. Vui lòng đợi trong giây lát...")
+        print(f"Phát hiện thư viện chưa cài đặt: {', '.join(missing_packages)}")
+        print("Đang tự động tải và cài đặt. Vui lòng đợi trong giây lát...")
         try:
             # Chạy ngầm lệnh cài đặt qua pip
             subprocess.check_call([sys.executable, "-m", "pip", "install", *missing_packages])
-            print("✅ Cài đặt hoàn tất! Bắt đầu chạy chương trình...\n" + "-"*40)
+            print("Cài đặt hoàn tất! Bắt đầu chạy chương trình...\n" + "-"*40)
         except subprocess.CalledProcessError as e:
-            print(f"❌ Lỗi trong quá trình cài đặt: {e}")
+            print(f"Lỗi trong quá trình cài đặt: {e}")
             sys.exit(1) # Dừng nếu lỗi
 
 # 2. GỌI HÀM NÀY ĐẦU TIÊN
@@ -101,7 +101,7 @@ ADMIN_USER = "admin"
 ADMIN_PASS = "naruyuu2203"
 POSSIBLE_ROOT_DIRS = [
     "./manga",
-    r"C:\Users\YourName\Manga",
+    r"C:\Users\NaruYuu\Documents\Mangas",
 ]
 ROOT_DIR = next((p for p in POSSIBLE_ROOT_DIRS if os.path.exists(p)), POSSIBLE_ROOT_DIRS[0])
 DB_PROGRESS_FILE = os.path.join(ROOT_DIR, "reading_progress_v2.json")
@@ -515,6 +515,28 @@ def api_chapter_data(series_id, chap_id):
     imgs=sorted([f for f in os.listdir(os.path.join(ROOT_DIR,rn,rc)) if is_image(f)], key=manga_sort_key) 
     return jsonify({"chap_name": rc, "prev_chap_name": prev, "next_id": nid, "images": [f"/image/{series_id}/{chap_id}/{i}" for i in imgs]})
 
+@app.route('/api/mangas', methods=['GET'])
+def api_mangas():
+    """API trả về danh sách truyện cho Aidoku"""
+    mangas = []
+    if os.path.exists(ROOT_DIR):
+        for d in sorted(os.listdir(ROOT_DIR)):
+            if os.path.isdir(os.path.join(ROOT_DIR, d)):
+                mangas.append({"id": generate_id(d), "title": d})
+    return jsonify(mangas)
+
+@app.route('/api/chapters/<series_id>', methods=['GET'])
+def api_chapters(series_id):
+    """API trả về danh sách chương của một truyện cho Aidoku"""
+    real_name = get_real_path_from_id(ROOT_DIR, series_id)
+    if not real_name: 
+        return jsonify([])
+    chaps = get_chapter_list(os.path.join(ROOT_DIR, real_name))
+    
+    # Đảo ngược danh sách nếu Aidoku ưu tiên hiển thị chương mới nhất ở trên cùng
+    chaps_json = [{"id": generate_id(c), "title": c} for c in chaps]
+    return jsonify(chaps_json)
+    
 @app.route('/')
 def home():
     user = request.cookies.get('username'); headers = {'Cache-Control': 'no-cache'}
