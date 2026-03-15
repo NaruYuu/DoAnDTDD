@@ -371,6 +371,7 @@ JS_READER_SCRIPT = """
         if (gp.buttons[5].pressed) { if (!buttonPressState['r1']) { jumpNextChapter(); buttonPressState['r1'] = true; } } else buttonPressState['r1'] = false;
         if (gp.buttons[4].pressed) { if (!buttonPressState['l1']) { jumpPrevChapter(); buttonPressState['l1'] = true; } } else buttonPressState['l1'] = false;
         if (gp.buttons[3].pressed) { if (!buttonPressState['tri']) { toggleNav(); buttonPressState['tri'] = true; } } else buttonPressState['tri'] = false;
+        if (gp.buttons[1].pressed) { if (!buttonPressState['o']) { window.location.href = '/series/' + currentSeriesId; buttonPressState['o'] = true; } } else buttonPressState['o'] = false;
         requestAnimationFrame(gamepadLoop);
     }
     
