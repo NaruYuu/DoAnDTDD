@@ -619,6 +619,7 @@ def api_chapters(series_id):
     return jsonify(chaps_json)
     
 @app.route('/')
+@app.route('/')
 def home():
     user = request.cookies.get('username'); headers = {'Cache-Control': 'no-cache'}
     if not user: return render_template_string(f"""<html><head><meta name="viewport" content="width=device-width,initial-scale=1">{CSS_STYLE}</head><body style="padding:20px;text-align:center"><form action="/login" method="POST"><h3 style="color:#fff">Tên bạn?</h3><input name="username"><button>Lưu</button></form></body></html>""")
@@ -629,8 +630,9 @@ def home():
             if os.path.isdir(os.path.join(ROOT_DIR, d)):
                 sid=generate_id(d); last=prog.get(sid); extra=""
                 if last: extra=f"<br><small style='color:#bb86fc'>Đọc tiếp: {get_real_path_from_id(os.path.join(ROOT_DIR,d), last)}</small>"
-                h+=f'<div style="background:#111;margin:10px;padding:15px;border-radius:8px"><a href="/series/{sid}">📁 {d}</a> {extra}</div>'
-    return render_template_string(f"""<html><head><meta name="viewport" content="width=device-width,initial-scale=1">{CSS_STYLE}</head><body style="padding:20px;max-width:800px;margin:0 auto;background:#000;"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="color:#fff">📚 Kho Truyện</h2><a href="/admin" style="font-size:12px;color:#555">Admin</a></div>{h}</body></html>""", headers=headers)
+                # Chuyển thành thẻ a class="menu-item"
+                h+=f'<a href="/series/{sid}" class="menu-item">📁 <b style="color:#fff">{d}</b> {extra}</a>'
+    return render_template_string(f"""<html><head><meta name="viewport" content="width=device-width,initial-scale=1">{CSS_STYLE}</head><body style="padding:20px;max-width:800px;margin:0 auto;background:#000;"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="color:#fff">📚 Kho Truyện</h2><a href="/admin" style="font-size:12px;color:#555">Admin</a></div><div id="menu-list">{h}</div>{JS_MENU_SCRIPT}</body></html>""", headers=headers)
 
 @app.route('/series/<series_id>')
 def view_series(series_id):
@@ -643,9 +645,10 @@ def view_series(series_id):
     html_list = ""
     for c in chaps:
         c_id = generate_id(c)
-        style = "background:#2a2a2a;border-left:4px solid #bb86fc;" if c_id == last_id else "background:#1e1e1e;"
-        html_list += f'<a href="/read/{series_id}/{c_id}" style="display:block;padding:15px;margin-bottom:10px;border-radius:8px;text-decoration:none;color:#ccc;{style}">📄 {c}</a>'
-    return render_template_string(f"""<html><head><title>{real_name}</title><meta name="viewport" content="width=device-width,initial-scale=1">{CSS_STYLE}</head><body style="padding:20px;max-width:800px;margin:0 auto;background:#000;"><h3><a href="/" style="color:#bb86fc;text-decoration:none;">⬅ Home</a> / {real_name}</h3>{html_list}</body></html>""", headers=headers)
+        active_cls = " active-chap" if c_id == last_id else ""
+        # Chuyển thành thẻ a class="menu-item"
+        html_list += f'<a href="/read/{series_id}/{c_id}" class="menu-item{active_cls}">📄 {c}</a>'
+    return render_template_string(f"""<html><head><title>{real_name}</title><meta name="viewport" content="width=device-width,initial-scale=1">{CSS_STYLE}</head><body style="padding:20px;max-width:800px;margin:0 auto;background:#000;"><h3><a href="/" style="color:#bb86fc;text-decoration:none;">⬅ Home</a> / {real_name}</h3><div id="menu-list">{html_list}</div>{JS_MENU_SCRIPT}</body></html>""", headers=headers)
 
 @app.route('/read/<series_id>/<chap_id>')
 def read_chapter(series_id, chap_id):
