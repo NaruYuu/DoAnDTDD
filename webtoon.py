@@ -280,11 +280,19 @@ CSS_STYLE = """
     
     .gamepad-icon { font-size: 20px; color: #555; transition: color 0.3s; margin-right: 10px; }
     .gamepad-icon.active { color: #bb86fc; text-shadow: 0 0 10px #bb86fc; }
+    body.gamepad-active, body.gamepad-active * { cursor: none !important; }
 
     /* Tùy chỉnh hiệu ứng chọn bằng Gamepad */
-    .menu-item { display: block; background: #111; margin: 10px; padding: 15px; border-radius: 8px; text-decoration: none; color: #ccc; border: 2px solid transparent; transition: all 0.2s ease; }
-    .menu-item:hover, .menu-item.focused { border-color: #bb86fc; background: #1e1e1e; transform: scale(1.02); box-shadow: 0 0 10px rgba(187, 134, 252, 0.3); }
-    .menu-item.active-chap { border-left: 4px solid #bb86fc; }
+    .menu-item { display: flex; align-items: center; gap: 14px; background: rgba(255,255,255,0.03); margin: 10px 10px 6px; padding: 18px 22px; border-radius: 20px; text-decoration: none; color: #ddd; border: 1px solid rgba(255,255,255,0.12); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04); transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+        will-change: transform, box-shadow;
+    }
+    .menu-item:hover { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); }
+    .menu-item .menu-icon { min-width: 36px; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,0.06); font-size: 18px; }
+    .menu-item .menu-content { display: flex; flex-direction: column; align-items: flex-start; }
+    .menu-item .menu-title { color: #fff; font-weight: 600; }
+    .menu-item .menu-subtitle { color: #99d4ff; font-size: 0.9rem; margin-top: 4px; line-height: 1.2; }
+    body.gamepad-active .menu-item.focused { border-color: rgba(122, 210, 255, 0.9); background: rgba(255,255,255,0.08); transform: translateY(-1px); box-shadow: 0 18px 40px rgba(0,0,0,0.22), 0 0 0 1px rgba(122, 210, 255, 0.2); }
+    .menu-item.active-chap { border-left: 4px solid rgba(187, 134, 252, 0.9); }
     
     /* --- BỐ CỤC CHUYỂN CHƯƠNG (Phần bạn đang bị lỗi) --- */
     .chap-separator { width: 100%; padding: 40px 20px; background: #111; color: #888; text-align: center; border-top: 1px solid #333; border-bottom: 1px solid #333; box-sizing: border-box; overflow: hidden; }
@@ -339,8 +347,15 @@ JS_READER_SCRIPT = """
         allChaptersData = JSON.parse(allChapsJson);
         buildChapterSelector(initialChapId);
         window.addEventListener('scroll', handleScroll);
-        window.addEventListener("gamepadconnected", (e) => { gamepadIndex = e.gamepad.index; document.getElementById('gp-icon').classList.add('active'); requestAnimationFrame(gamepadLoop); });
-        window.addEventListener("gamepaddisconnected", (e) => { gamepadIndex = null; document.getElementById('gp-icon').classList.remove('active'); });
+        window.addEventListener("gamepadconnected", (e) => { gamepadIndex = e.gamepad.index; document.getElementById('gp-icon').classList.add('active'); document.body.classList.add('gamepad-active'); document.body.style.cursor = 'none'; requestAnimationFrame(gamepadLoop); });
+        window.addEventListener("gamepaddisconnected", (e) => { gamepadIndex = null; document.getElementById('gp-icon').classList.remove('active'); document.body.classList.remove('gamepad-active'); document.body.style.cursor = 'auto'; });
+
+        const connected = navigator.getGamepads && Array.from(navigator.getGamepads()).some(g => g && g.connected);
+        if (connected) {
+            document.body.classList.add('gamepad-active');
+            document.body.style.cursor = 'none';
+            requestAnimationFrame(gamepadLoop);
+        }
     }
 
     function handleScroll() {
@@ -421,25 +436,65 @@ JS_MENU_SCRIPT = """
     let menuItems = [];
     let btnState = {};
     let lastMove = 0;
+    let holdDirection = null;
+    let holdStartTime = 0;
+
+    function disableGamepadMode() {
+        document.body.classList.remove('gamepad-active');
+        document.body.style.cursor = 'auto';
+        if(menuItems.length > 0) menuItems[currentIndex].classList.remove('focused');
+        // Không set gamepadIndex = null để loop vẫn chạy và có thể re-enable
+    }
 
     function initMenuGamepad() {
         menuItems = document.querySelectorAll('.menu-item');
-        if(menuItems.length > 0) menuItems[currentIndex].classList.add('focused');
         
         window.addEventListener("gamepadconnected", (e) => { 
-            gamepadIndex = e.gamepad.index; 
+            gamepadIndex = e.gamepad.index;
+            document.body.classList.add('gamepad-active');
+            document.body.style.cursor = 'none';
+            currentIndex = 0;
+            if(menuItems.length > 0) menuItems[currentIndex].classList.add('focused');
+            // Thêm listeners cho mouse và keyboard để tắt chế độ gamepad
+            document.addEventListener('mousedown', disableGamepadMode, { once: true });
+            document.addEventListener('keydown', disableGamepadMode, { once: true });
             requestAnimationFrame(menuGamepadLoop); 
         });
         window.addEventListener("gamepaddisconnected", (e) => { 
-            gamepadIndex = null; 
+            gamepadIndex = null;
+            document.body.classList.remove('gamepad-active');
+            document.body.style.cursor = 'auto';
+            if(menuItems.length > 0) menuItems[currentIndex].classList.remove('focused');
+            // Remove listeners
+            document.removeEventListener('mousedown', disableGamepadMode);
+            document.removeEventListener('keydown', disableGamepadMode);
         });
+
+        const connected = navigator.getGamepads && Array.from(navigator.getGamepads()).some(g => g && g.connected);
+        if (connected) {
+            document.body.classList.add('gamepad-active');
+            document.body.style.cursor = 'none';
+            currentIndex = 0;
+            if(menuItems.length > 0) menuItems[currentIndex].classList.add('focused');
+            // Thêm listeners
+            document.addEventListener('mousedown', disableGamepadMode, { once: true });
+            document.addEventListener('keydown', disableGamepadMode, { once: true });
+            requestAnimationFrame(menuGamepadLoop);
+        }
     }
 
     function updateMenuFocus() {
         menuItems.forEach((item, idx) => {
             if(idx === currentIndex) {
                 item.classList.add('focused');
-                item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const rect = item.getBoundingClientRect();
+                const topGap = 120;
+                const bottomGap = 120;
+
+                if (rect.top < topGap || rect.bottom > window.innerHeight - bottomGap) {
+                    const target = window.scrollY + rect.top - window.innerHeight / 2 + rect.height / 2;
+                    window.scrollTo({ top: target, behavior: 'auto' });
+                }
             } else {
                 item.classList.remove('focused');
             }
@@ -451,20 +506,49 @@ JS_MENU_SCRIPT = """
         const gp = navigator.getGamepads()[gamepadIndex];
         if (!gp) return;
 
+        // Re-enable nếu detect input từ gamepad mà chưa active
+        const hasInput = gp.buttons.some(b => b.pressed) || gp.axes.some(a => Math.abs(a) > 0.1);
+        if (hasInput && !document.body.classList.contains('gamepad-active')) {
+            document.body.classList.add('gamepad-active');
+            document.body.style.cursor = 'none';
+            if(menuItems.length > 0) menuItems[currentIndex].classList.add('focused');
+        }
+
+        // Chỉ process input nếu active
+        if (!document.body.classList.contains('gamepad-active')) {
+            requestAnimationFrame(menuGamepadLoop);
+            return;
+        }
+
         const now = Date.now();
         
         // Điều hướng Lên/Xuống bằng D-pad (12, 13) hoặc Analog Trái/Phải
         let moveUp = gp.buttons[12]?.pressed || gp.axes[1] < -0.5 || gp.axes[3] < -0.5;
         let moveDown = gp.buttons[13]?.pressed || gp.axes[1] > 0.5 || gp.axes[3] > 0.5;
+        let direction = null;
 
-        if (moveDown && now - lastMove > 200) {
-            if (currentIndex < menuItems.length - 1) currentIndex++;
-            updateMenuFocus();
-            lastMove = now;
-        } else if (moveUp && now - lastMove > 200) {
-            if (currentIndex > 0) currentIndex--;
-            updateMenuFocus();
-            lastMove = now;
+        if (moveDown) direction = 'down';
+        else if (moveUp) direction = 'up';
+
+        if (direction) {
+            if (holdDirection !== direction) {
+                holdDirection = direction;
+                holdStartTime = now;
+            }
+            let elapsed = now - holdStartTime;
+            let repeatDelay = 200;
+            if (elapsed >= 2000) repeatDelay = 50;
+            else if (elapsed >= 1500) repeatDelay = 80;
+
+            if (now - lastMove > repeatDelay) {
+                if (direction === 'down' && currentIndex < menuItems.length - 1) currentIndex++;
+                else if (direction === 'up' && currentIndex > 0) currentIndex--;
+                updateMenuFocus();
+                lastMove = now;
+            }
+        } else {
+            holdDirection = null;
+            holdStartTime = 0;
         }
 
         // Nút X (Button 0) -> Click vào mục đang Focus
@@ -475,10 +559,12 @@ JS_MENU_SCRIPT = """
             }
         } else btnState['x'] = false;
 
-        // Nút O (Button 1) -> Quay lại trang trước
+        // Nút O (Button 1) -> Quay lại trang trước (chỉ trong web)
         if (gp.buttons[1]?.pressed) {
             if (!btnState['o']) {
-                window.history.back();
+                if (window.location.pathname !== "/") {
+                    window.history.back();
+                }
                 btnState['o'] = true;
             }
         } else btnState['o'] = false;
@@ -632,7 +718,7 @@ def home():
                 sid=generate_id(d); last=prog.get(sid); extra=""
                 if last: extra=f"<br><small style='color:#bb86fc'>Đọc tiếp: {get_real_path_from_id(os.path.join(ROOT_DIR,d), last)}</small>"
                 # Chuyển thành thẻ a class="menu-item"
-                h+=f'<a href="/series/{sid}" class="menu-item">📁 <b style="color:#fff">{d}</b> {extra}</a>'
+                h+=f'<a href="/series/{sid}" class="menu-item"><span class="menu-icon">📁</span><span class="menu-content"><span class="menu-title">{d}</span>{extra}</span></a>'
     return render_template_string(f"""<html><head><meta name="viewport" content="width=device-width,initial-scale=1">{CSS_STYLE}</head><body style="padding:20px;max-width:800px;margin:0 auto;background:#000;"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="color:#fff">📚 Kho Truyện</h2><a href="/admin" style="font-size:12px;color:#555">Admin</a></div><div id="menu-list">{h}</div>{JS_MENU_SCRIPT}</body></html>""", headers=headers)
 
 @app.route('/series/<series_id>')
@@ -648,7 +734,7 @@ def view_series(series_id):
         c_id = generate_id(c)
         active_cls = " active-chap" if c_id == last_id else ""
         # Chuyển thành thẻ a class="menu-item"
-        html_list += f'<a href="/read/{series_id}/{c_id}" class="menu-item{active_cls}">📄 {c}</a>'
+        html_list += f'<a href="/read/{series_id}/{c_id}" class="menu-item{active_cls}"><span class="menu-icon">📄</span><span class="menu-content"><span class="menu-title">{c}</span></span></a>'
     return render_template_string(f"""<html><head><title>{real_name}</title><meta name="viewport" content="width=device-width,initial-scale=1">{CSS_STYLE}</head><body style="padding:20px;max-width:800px;margin:0 auto;background:#000;"><h3><a href="/" style="color:#bb86fc;text-decoration:none;">⬅ Home</a> / {real_name}</h3><div id="menu-list">{html_list}</div>{JS_MENU_SCRIPT}</body></html>""", headers=headers)
 
 @app.route('/read/<series_id>/<chap_id>')
